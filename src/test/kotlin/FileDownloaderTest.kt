@@ -1,6 +1,7 @@
+import mockwebserver3.Dispatcher
 import mockwebserver3.MockResponse
 import mockwebserver3.MockWebServer
-import okhttp3.Headers.Companion.headersOf
+import mockwebserver3.RecordedRequest
 import kotlin.io.path.Path
 import kotlin.io.path.readText
 import kotlin.test.Test
@@ -11,18 +12,27 @@ class FileDownloaderTest {
     fun `downloads file correctly`() {
         val server = MockWebServer()
         val content = "hello world"
-        val chunkCount = 4
-        server.enqueue(
-            MockResponse(
-                headers = headersOf("Content-Length", "11"),
-                code = 200
-            )
-        )
-        val chunkSize = content.length / chunkCount
-        for (i in 0..<chunkCount) {
-            val start = i * chunkSize
-            val end = if (i == chunkCount - 1) content.length else (i + 1) * chunkSize
-            server.enqueue(MockResponse(body = content.substring(start, end), code = 206))
+        server.dispatcher = object : Dispatcher() {
+            override fun dispatch(request: RecordedRequest): MockResponse {
+                return when (request.method) {
+                    "HEAD" -> MockResponse.Builder()
+                        .addHeader("Content-Length", content.length)
+                        .code(200)
+                        .build()
+
+                    "GET" -> {
+                        val range = request.headers["Range"] ?: return MockResponse(code = 400)
+                        val start = range.substringAfter("bytes=").substringBefore("-").toInt()
+                        val end = range.substringAfter("-").toInt() + 1
+                        MockResponse.Builder()
+                            .body(content.substring(start, end))
+                            .code(206)
+                            .build()
+                    }
+
+                    else -> MockResponse(code = 400)
+                }
+            }
         }
         server.start()
 

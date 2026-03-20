@@ -1,3 +1,8 @@
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.runBlocking
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import kotlin.io.path.Path
@@ -50,16 +55,17 @@ class FileDownloader(private val url: String, private val chunkCount: Int = 4) {
     fun download(filePath: String) {
         val size = getFileSize(filePath)
         val chunkRanges = calculateChunks(size)
-        val chunks = mutableListOf<ByteArray>()
-        for (i in chunkRanges.indices) {
-            chunks.add(downloadChunk(filePath, chunkRanges[i]))
+        runBlocking {
+            coroutineScope {
+                val deferred = chunkRanges.map { range ->
+                    async(Dispatchers.IO) {
+                        downloadChunk(filePath, range)
+                    }
+                }
+                val chunks = deferred.awaitAll()
+                Path(filePath).writeBytes(chunks.fold(ByteArray(0)) { acc, bytes -> acc + bytes })
+            }
         }
-        Path(filePath).writeBytes(chunks.fold(ByteArray(0)) { acc, bytes -> acc + bytes })
-        // combine and write to path
-        //response.body.byteStream().use { input ->
-        //    Path(filePath).outputStream().use { output ->
-        //        input.copyTo(output)
-        //    }
-        //}
+
     }
 }
