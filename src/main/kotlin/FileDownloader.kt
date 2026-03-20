@@ -21,10 +21,12 @@ class FileDownloader(private val url: String, private val chunkCount: Int = 4) {
         client.newCall(request).executeAsync().use { response ->
             if (!response.isSuccessful) throw Exception("Unexpected response code, ${response.code}")
             if (response.header("Accept-Ranges") != "bytes") {
-                throw Exception("Server does not support range requests")
+                throw Exception("Accept-Ranges header is missing")
             }
-            return response.headers["Content-Length"]?.toLong()
-                ?: throw Exception("Content-Length header is missing")
+            val size =
+                response.headers["Content-Length"]?.toLong() ?: throw Exception("Content-Length header is missing")
+            if (size == 0L) throw Exception("File is empty, Content-Length header is 0")
+            return size
         }
     }
 

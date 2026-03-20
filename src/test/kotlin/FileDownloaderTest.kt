@@ -8,7 +8,9 @@ import org.junit.jupiter.api.BeforeEach
 import kotlin.io.path.Path
 import kotlin.io.path.readText
 import kotlin.test.Test
+import kotlin.test.assertContains
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 
 class FileDownloaderTest {
     private lateinit var server: MockWebServer
@@ -33,6 +35,7 @@ class FileDownloaderTest {
                         .addHeader("Accept-Ranges", "bytes")
                         .code(200)
                         .build()
+
                     "GET" -> {
                         val range = request.headers["Range"] ?: return MockResponse(code = 400)
                         val start = range.substringAfter("bytes=").substringBefore("-").toInt()
@@ -42,6 +45,7 @@ class FileDownloaderTest {
                             .code(206)
                             .build()
                     }
+
                     else -> MockResponse(code = 400)
                 }
             }
@@ -64,5 +68,33 @@ class FileDownloaderTest {
         val downloader = FileDownloader(server.url("").toString().trimEnd('/'), chunkCount = 1)
         downloader.download("file.txt")
         assertEquals(content, Path("file.txt").readText())
+    }
+
+    @Test
+    fun `throws exception when Accept-Ranges header is missing`() = runBlocking {
+        server.dispatcher = object : Dispatcher() {
+            override fun dispatch(request: RecordedRequest): MockResponse {
+                return MockResponse.Builder().code(200).build()
+            }
+        }
+        val downloader = FileDownloader(server.url("").toString().trimEnd('/'), chunkCount = 1)
+        val exception = assertFailsWith<Exception> {
+            downloader.download("file.txt")
+        }
+        assertContains(exception.message.toString(), "Accept-Ranges")
+    }
+
+    @Test
+    fun `throws exception when file is empty`() = runBlocking {
+        server.dispatcher = object : Dispatcher() {
+            override fun dispatch(request: RecordedRequest): MockResponse {
+                return MockResponse.Builder().code(200).addHeader("Accept-Ranges","bytes").build()
+            }
+        }
+        val downloader = FileDownloader(server.url("").toString().trimEnd('/'), chunkCount = 1)
+        val exception = assertFailsWith<Exception> {
+            downloader.download("file.txt")
+        }
+        assertContains(exception.message.toString(), "empty")
     }
 }
