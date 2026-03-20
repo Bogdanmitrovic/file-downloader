@@ -180,4 +180,18 @@ class FileDownloaderTest {
         downloader.download("file.txt", tempPath)
         assertEquals(content, Path(tempPath).readText())
     }
+
+    @Test
+    fun `cleans up output file on failed download`() = runBlocking {
+        server.dispatcher = object : Dispatcher() {
+            override fun dispatch(request: RecordedRequest): MockResponse {
+                return MockResponse.Builder().code(500).build()
+            }
+        }
+        val downloader = FileDownloader(server.url("").toString().trimEnd('/'), retryCount = 1)
+        assertFailsWith<Exception> {
+            downloader.download("file.txt", tempPath)
+        }
+        assert(!Path(tempPath).toFile().exists())
+    }
 }
