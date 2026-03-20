@@ -12,6 +12,7 @@ repositories {
 dependencies {
     testImplementation(kotlin("test"))
     implementation("com.squareup.okhttp3:okhttp:5.3.0")
+    testImplementation("com.squareup.okhttp3:mockwebserver:5.3.0")
 }
 
 kotlin {
