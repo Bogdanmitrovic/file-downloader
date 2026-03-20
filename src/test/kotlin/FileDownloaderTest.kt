@@ -1,3 +1,4 @@
+import kotlinx.coroutines.runBlocking
 import mockwebserver3.Dispatcher
 import mockwebserver3.MockResponse
 import mockwebserver3.MockWebServer
@@ -9,7 +10,7 @@ import kotlin.test.assertEquals
 
 class FileDownloaderTest {
     @Test
-    fun `downloads file correctly`() {
+    fun `downloads file correctly`() = runBlocking{
         val server = MockWebServer()
         val content = "hello world"
         server.dispatcher = object : Dispatcher() {
