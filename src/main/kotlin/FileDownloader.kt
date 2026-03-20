@@ -8,9 +8,21 @@ import okhttp3.Request
 import okhttp3.coroutines.executeAsync
 import java.io.RandomAccessFile
 
-class FileDownloader(private val url: String, private val chunkCount: Int = 4) {
+class FileDownloader(private val url: String, private val chunkCount: Int = 4, private val retryCount: Int = 2) {
 
     private val client = OkHttpClient()
+
+    private suspend fun <T> retry(times: Int, block: suspend () -> T): T {
+        var lastException: Exception? = null
+        repeat(times) {
+            try {
+                return block()
+            } catch (e: Exception) {
+                lastException = e
+            }
+        }
+        throw lastException!!
+    }
 
     private suspend fun getFileSize(filePath: String): Long {
         val path = "$url/$filePath"
@@ -50,18 +62,20 @@ class FileDownloader(private val url: String, private val chunkCount: Int = 4) {
             .addHeader("Range", "bytes=${range.first}-${range.last}")
             .get()
             .build()
-        client.newCall(request).executeAsync().use { response ->
-            if (response.code != 206) throw Exception("Expected 206 Partial Content, received ${response.code}")
-            response.body.byteStream().use { input ->
-                val channel = file.channel
-                val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
-                var bytesRead: Int
-                var position = range.first
+        retry(times = retryCount) {
+            client.newCall(request).executeAsync().use { response ->
+                if (response.code != 206) throw Exception("Expected 206 Partial Content, received ${response.code}")
+                response.body.byteStream().use { input ->
+                    val channel = file.channel
+                    val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
+                    var bytesRead: Int
+                    var position = range.first
 
-                while (input.read(buffer).also { bytesRead = it } != -1) {
-                    val byteBuffer = java.nio.ByteBuffer.wrap(buffer, 0, bytesRead)
-                    channel.write(byteBuffer, position)
-                    position += bytesRead
+                    while (input.read(buffer).also { bytesRead = it } != -1) {
+                        val byteBuffer = java.nio.ByteBuffer.wrap(buffer, 0, bytesRead)
+                        channel.write(byteBuffer, position)
+                        position += bytesRead
+                    }
                 }
             }
         }
