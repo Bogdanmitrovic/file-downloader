@@ -11,6 +11,7 @@ import kotlin.test.Test
 import kotlin.test.assertContains
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
+import kotlin.test.assertTrue
 
 class FileDownloaderTest {
     private lateinit var server: MockWebServer
@@ -62,6 +63,16 @@ class FileDownloaderTest {
         val downloader = FileDownloader(server.url("").toString().trimEnd('/'), chunkCount = 4)
         downloader.download("file.txt", tempPath)
         assertEquals(content, Path(tempPath).readText())
+    }
+
+    @Test
+    fun `download uses multiple get requests`() = runBlocking {
+        val content = "hello world"
+        val chunkCount = 4
+        setupDispatcher(content)
+        val downloader = FileDownloader(server.url("").toString().trimEnd('/'), chunkCount = chunkCount)
+        downloader.download("file.txt", tempPath)
+        assertTrue(server.requestCount >= chunkCount + 1)
     }
 
     @Test
