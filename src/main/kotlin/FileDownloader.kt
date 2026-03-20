@@ -49,22 +49,21 @@ class FileDownloader(private val url: String, private val chunkCount: Int = 4) {
             .build()
         client.newCall(request).executeAsync().use { response ->
             if (response.code != 206) throw Exception("Expected 206 Partial Content, received ${response.code}")
-            withContext(Dispatchers.IO) {
-                response.body.byteStream().use { input ->
-                    val channel = file.channel
-                    val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
-                    var bytesRead: Int
-                    var position = range.first
+            response.body.byteStream().use { input ->
+                val channel = file.channel
+                val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
+                var bytesRead: Int
+                var position = range.first
 
-                    while (input.read(buffer).also { bytesRead = it } != -1) {
-                        val byteBuffer = java.nio.ByteBuffer.wrap(buffer, 0, bytesRead)
-                        channel.write(byteBuffer, position)
-                        position += bytesRead
-                    }
+                while (input.read(buffer).also { bytesRead = it } != -1) {
+                    val byteBuffer = java.nio.ByteBuffer.wrap(buffer, 0, bytesRead)
+                    channel.write(byteBuffer, position)
+                    position += bytesRead
                 }
             }
         }
     }
+
     suspend fun download(filePath: String) {
         val size = getFileSize(filePath)
         val chunkRanges = calculateChunks(size)
