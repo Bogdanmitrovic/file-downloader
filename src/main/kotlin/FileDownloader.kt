@@ -6,8 +6,7 @@ import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.coroutines.executeAsync
-import kotlin.io.path.Path
-import kotlin.io.path.writeBytes
+import java.io.RandomAccessFile
 
 class FileDownloader(private val url: String, private val chunkCount: Int = 4) {
 
@@ -38,7 +37,7 @@ class FileDownloader(private val url: String, private val chunkCount: Int = 4) {
         return chunks
     }
 
-    private suspend fun downloadChunk(filePath: String, range: LongRange): ByteArray {
+    private suspend fun downloadChunk(filePath: String, range: LongRange, file: RandomAccessFile) {
         val path = "$url/$filePath"
         val request = Request.Builder()
             .url(path)
@@ -47,22 +46,34 @@ class FileDownloader(private val url: String, private val chunkCount: Int = 4) {
             .build()
         client.newCall(request).executeAsync().use { response ->
             if (response.code != 206) throw Exception("Expected 206 Partial Content, received ${response.code}")
-            return withContext(Dispatchers.IO) {
-                response.body.bytes()
+            withContext(Dispatchers.IO) {
+                response.body.byteStream().use { input ->
+                    val channel = file.channel
+                    val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
+                    var bytesRead: Int
+                    var position = range.first
+
+                    while (input.read(buffer).also { bytesRead = it } != -1) {
+                        val byteBuffer = java.nio.ByteBuffer.wrap(buffer, 0, bytesRead)
+                        channel.write(byteBuffer, position)
+                        position += bytesRead
+                    }
+                }
             }
         }
     }
-
     suspend fun download(filePath: String) {
-        coroutineScope {
-            println("${System.currentTimeMillis()} Starting $filePath")
-            val size = getFileSize(filePath)
-            val chunkRanges = calculateChunks(size)
-            val chunks = chunkRanges.map { range ->
-                async { downloadChunk(filePath, range) }
-            }.awaitAll()
-            Path(filePath).writeBytes(chunks.fold(ByteArray(0)) { acc, bytes -> acc + bytes })
-            println("${System.currentTimeMillis()} Finishing $filePath")
+        val size = getFileSize(filePath)
+        val chunkRanges = calculateChunks(size)
+        withContext(Dispatchers.IO) {
+            RandomAccessFile(filePath, "rw").use { file ->
+                file.setLength(size)
+                coroutineScope {
+                    chunkRanges.map { range ->
+                        async { downloadChunk(filePath, range, file) }
+                    }.awaitAll()
+                }
+            }
         }
     }
 
