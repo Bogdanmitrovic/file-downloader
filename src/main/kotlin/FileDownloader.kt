@@ -81,11 +81,11 @@ class FileDownloader(private val url: String, private val chunkCount: Int = 4, p
         }
     }
 
-    suspend fun download(filePath: String) {
+    suspend fun download(filePath: String, outputPath:String = filePath) {
         val size = getFileSize(filePath)
         val chunkRanges = calculateChunks(size)
         withContext(Dispatchers.IO) {
-            RandomAccessFile(filePath, "rw").use { file ->
+            RandomAccessFile(outputPath, "rw").use { file ->
                 file.setLength(size)
                 coroutineScope {
                     chunkRanges.map { range ->

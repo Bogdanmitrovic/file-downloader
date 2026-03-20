@@ -14,11 +14,14 @@ import kotlin.test.assertFailsWith
 
 class FileDownloaderTest {
     private lateinit var server: MockWebServer
+    private lateinit var tempPath: String
 
     @BeforeEach
     fun setUp() {
         server = MockWebServer()
         server.start()
+        val file = kotlin.io.path.createTempFile().toFile()
+        tempPath = file.absolutePath
     }
 
     @AfterEach
@@ -57,8 +60,8 @@ class FileDownloaderTest {
         val content = "hello world"
         setupDispatcher(content)
         val downloader = FileDownloader(server.url("").toString().trimEnd('/'), chunkCount = 4)
-        downloader.download("file.txt")
-        assertEquals(content, Path("file.txt").readText())
+        downloader.download("file.txt", tempPath)
+        assertEquals(content, Path(tempPath).readText())
     }
 
     @Test
@@ -66,8 +69,8 @@ class FileDownloaderTest {
         val content = "hello world"
         setupDispatcher(content)
         val downloader = FileDownloader(server.url("").toString().trimEnd('/'), chunkCount = 1)
-        downloader.download("file.txt")
-        assertEquals(content, Path("file.txt").readText())
+        downloader.download("file.txt", tempPath)
+        assertEquals(content, Path(tempPath).readText())
     }
 
     @Test
@@ -75,8 +78,8 @@ class FileDownloaderTest {
         val content = "hello world"
         setupDispatcher(content)
         val downloader = FileDownloader(server.url("").toString().trimEnd('/'), chunkCount = content.length + 1)
-        downloader.download("file.txt")
-        assertEquals(content, Path("file.txt").readText())
+        downloader.download("file.txt", tempPath)
+        assertEquals(content, Path(tempPath).readText())
     }
 
     @Test
@@ -84,9 +87,9 @@ class FileDownloaderTest {
         val content = "hello world"
         setupDispatcher(content)
         val downloader = FileDownloader(server.url("").toString().trimEnd('/'))
-        downloader.download("file.txt")
-        downloader.download("file.txt")
-        assertEquals(content, Path("file.txt").readText())
+        downloader.download("file.txt", tempPath)
+        downloader.download("file.txt", tempPath)
+        assertEquals(content, Path(tempPath).readText())
     }
 
     @Test
@@ -98,7 +101,7 @@ class FileDownloaderTest {
         }
         val downloader = FileDownloader(server.url("").toString().trimEnd('/'))
         val exception = assertFailsWith<Exception> {
-            downloader.download("file.txt")
+            downloader.download("file.txt", tempPath)
         }
         assertContains(exception.message.toString(), "404")
     }
@@ -112,7 +115,7 @@ class FileDownloaderTest {
         }
         val downloader = FileDownloader(server.url("").toString().trimEnd('/'), chunkCount = 1)
         val exception = assertFailsWith<Exception> {
-            downloader.download("file.txt")
+            downloader.download("file.txt", tempPath)
         }
         assertContains(exception.message.toString(), "Accept-Ranges")
     }
@@ -126,7 +129,7 @@ class FileDownloaderTest {
         }
         val downloader = FileDownloader(server.url("").toString().trimEnd('/'), chunkCount = 1)
         val exception = assertFailsWith<Exception> {
-            downloader.download("file.txt")
+            downloader.download("file.txt", tempPath)
         }
         assertContains(exception.message.toString(), "empty")
     }
@@ -143,6 +146,7 @@ class FileDownloaderTest {
                         .addHeader("Accept-Ranges", "bytes")
                         .code(200)
                         .build()
+
                     "GET" -> {
                         attempts++
                         if (attempts < 3) MockResponse.Builder().code(500).build()
@@ -156,12 +160,13 @@ class FileDownloaderTest {
                                 .build()
                         }
                     }
+
                     else -> MockResponse(code = 400)
                 }
             }
         }
         val downloader = FileDownloader(server.url("").toString().trimEnd('/'), chunkCount = 1, retryCount = 3)
-        downloader.download("file.txt")
-        assertEquals(content, Path("file.txt").readText())
+        downloader.download("file.txt", tempPath)
+        assertEquals(content, Path(tempPath).readText())
     }
 }
