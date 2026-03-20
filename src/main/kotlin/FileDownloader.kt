@@ -29,10 +29,11 @@ class FileDownloader(private val url: String, private val chunkCount: Int = 4) {
     }
 
     fun calculateChunks(fileSize: Long): List<LongRange> {
-        val chunkSize = fileSize / chunkCount
+        val actualChunkCount = minOf(chunkCount.toLong(), fileSize).toInt()
+        val chunkSize = fileSize / actualChunkCount
         val chunks = mutableListOf<LongRange>()
-        for (i in 0..<chunkCount) {
-            if (i == chunkCount - 1)
+        for (i in 0..<actualChunkCount) {
+            if (i == actualChunkCount - 1)
                 chunks.add(LongRange(i * chunkSize, fileSize - 1))
             else
                 chunks.add(LongRange(i * chunkSize, (i + 1) * chunkSize - 1))

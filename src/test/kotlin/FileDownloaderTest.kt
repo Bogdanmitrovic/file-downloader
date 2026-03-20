@@ -3,16 +3,28 @@ import mockwebserver3.Dispatcher
 import mockwebserver3.MockResponse
 import mockwebserver3.MockWebServer
 import mockwebserver3.RecordedRequest
+import org.junit.jupiter.api.AfterEach
+import org.junit.jupiter.api.BeforeEach
 import kotlin.io.path.Path
 import kotlin.io.path.readText
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
 class FileDownloaderTest {
-    @Test
-    fun `downloads file correctly`() = runBlocking{
-        val server = MockWebServer()
-        val content = "hello world"
+    private lateinit var server: MockWebServer
+
+    @BeforeEach
+    fun setUp() {
+        server = MockWebServer()
+        server.start()
+    }
+
+    @AfterEach
+    fun tearDown() {
+        server.close()
+    }
+
+    private fun setupDispatcher(content: String) {
         server.dispatcher = object : Dispatcher() {
             override fun dispatch(request: RecordedRequest): MockResponse {
                 return when (request.method) {
@@ -21,7 +33,6 @@ class FileDownloaderTest {
                         .addHeader("Accept-Ranges", "bytes")
                         .code(200)
                         .build()
-
                     "GET" -> {
                         val range = request.headers["Range"] ?: return MockResponse(code = 400)
                         val start = range.substringAfter("bytes=").substringBefore("-").toInt()
@@ -31,18 +42,27 @@ class FileDownloaderTest {
                             .code(206)
                             .build()
                     }
-
                     else -> MockResponse(code = 400)
                 }
             }
         }
-        server.start()
+    }
 
+    @Test
+    fun `downloads file correctly`() = runBlocking {
+        val content = "hello world"
+        setupDispatcher(content)
         val downloader = FileDownloader(server.url("").toString().trimEnd('/'), chunkCount = 4)
         downloader.download("file.txt")
-
         assertEquals(content, Path("file.txt").readText())
+    }
 
-        server.close()
+    @Test
+    fun `download works with chunkCount 1`() = runBlocking {
+        val content = "hello world"
+        setupDispatcher(content)
+        val downloader = FileDownloader(server.url("").toString().trimEnd('/'), chunkCount = 1)
+        downloader.download("file.txt")
+        assertEquals(content, Path("file.txt").readText())
     }
 }
