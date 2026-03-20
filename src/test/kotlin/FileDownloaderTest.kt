@@ -18,6 +18,7 @@ class FileDownloaderTest {
                 return when (request.method) {
                     "HEAD" -> MockResponse.Builder()
                         .addHeader("Content-Length", content.length)
+                        .addHeader("Accept-Ranges", "bytes")
                         .code(200)
                         .build()
 
