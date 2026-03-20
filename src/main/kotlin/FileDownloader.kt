@@ -1,9 +1,9 @@
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import kotlin.io.path.Path
-import kotlin.io.path.outputStream
+import kotlin.io.path.writeBytes
 
-class FileDownloader(private val url: String) {
+class FileDownloader(private val url: String, private val chunkCount: Int = 4) {
 
     private val client = OkHttpClient()
 
@@ -22,7 +22,6 @@ class FileDownloader(private val url: String) {
     }
 
     fun calculateChunks(fileSize: Long): List<LongRange> {
-        val chunkCount = 4
         val chunkSize = fileSize / chunkCount
         val chunks = mutableListOf<LongRange>()
         for (i in 0..<chunkCount) {
@@ -34,20 +33,33 @@ class FileDownloader(private val url: String) {
         return chunks
     }
 
-    fun download(filePath: String) {
+    fun downloadChunk(filePath: String, range: LongRange): ByteArray {
         val path = "$url/$filePath"
         val request = Request.Builder()
             .url(path)
+            .addHeader("Range", "bytes=${range.first}-${range.last}")
             .get()
             .build()
 
         client.newCall(request).execute().use { response ->
-            if (!response.isSuccessful) throw Exception("Unexpected response code: ${response.code}")
-            response.body.byteStream().use { input ->
-                Path(filePath).outputStream().use { output ->
-                    input.copyTo(output)
-                }
-            }
+            if (response.code != 206) throw Exception("Unexpected response code: ${response.code}")
+            return response.body.bytes()
         }
+    }
+
+    fun download(filePath: String) {
+        val size = getFileSize(filePath)
+        val chunkRanges = calculateChunks(size)
+        val chunks = mutableListOf<ByteArray>()
+        for (i in chunkRanges.indices) {
+            chunks.add(downloadChunk(filePath, chunkRanges[i]))
+        }
+        Path(filePath).writeBytes(chunks.fold(ByteArray(0)) { acc, bytes -> acc + bytes })
+        // combine and write to path
+        //response.body.byteStream().use { input ->
+        //    Path(filePath).outputStream().use { output ->
+        //        input.copyTo(output)
+        //    }
+        //}
     }
 }
