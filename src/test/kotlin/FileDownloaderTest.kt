@@ -83,10 +83,24 @@ class FileDownloaderTest {
     fun `download works with a existing file and overwrites`() = runBlocking {
         val content = "hello world"
         setupDispatcher(content)
-        val downloader = FileDownloader(server.url("").toString().trimEnd('/'), chunkCount = content.length + 1)
+        val downloader = FileDownloader(server.url("").toString().trimEnd('/'))
         downloader.download("file.txt")
         downloader.download("file.txt")
         assertEquals(content, Path("file.txt").readText())
+    }
+
+    @Test
+    fun `download fails for a non-existing file`() = runBlocking {
+        server.dispatcher = object : Dispatcher() {
+            override fun dispatch(request: RecordedRequest): MockResponse {
+                return MockResponse.Builder().code(404).build()
+            }
+        }
+        val downloader = FileDownloader(server.url("").toString().trimEnd('/'))
+        val exception = assertFailsWith<Exception> {
+            downloader.download("file.txt")
+        }
+        assertContains(exception.message.toString(), "404")
     }
 
     @Test
