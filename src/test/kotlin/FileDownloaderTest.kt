@@ -80,6 +80,16 @@ class FileDownloaderTest {
     }
 
     @Test
+    fun `download works with a existing file and overwrites`() = runBlocking {
+        val content = "hello world"
+        setupDispatcher(content)
+        val downloader = FileDownloader(server.url("").toString().trimEnd('/'), chunkCount = content.length + 1)
+        downloader.download("file.txt")
+        downloader.download("file.txt")
+        assertEquals(content, Path("file.txt").readText())
+    }
+
+    @Test
     fun `throws exception when Accept-Ranges header is missing`() = runBlocking {
         server.dispatcher = object : Dispatcher() {
             override fun dispatch(request: RecordedRequest): MockResponse {
