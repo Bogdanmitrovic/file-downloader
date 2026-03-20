@@ -21,6 +21,19 @@ class FileDownloader(private val url: String) {
         }
     }
 
+    fun calculateChunks(fileSize: Long): List<LongRange> {
+        val chunkCount = 4
+        val chunkSize = fileSize / chunkCount
+        val chunks = mutableListOf<LongRange>()
+        for (i in 0..<chunkCount) {
+            if (i == chunkCount - 1)
+                chunks.add(LongRange(i * chunkSize, fileSize - 1))
+            else
+                chunks.add(LongRange(i * chunkSize, (i + 1) * chunkSize - 1))
+        }
+        return chunks
+    }
+
     fun download(filePath: String) {
         val path = "$url/$filePath"
         val request = Request.Builder()
