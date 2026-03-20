@@ -1,6 +1,5 @@
 import okhttp3.OkHttpClient
 import okhttp3.Request
-import java.nio.file.Path
 import kotlin.io.path.Path
 import kotlin.io.path.outputStream
 
