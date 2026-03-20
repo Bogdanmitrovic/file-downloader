@@ -130,4 +130,38 @@ class FileDownloaderTest {
         }
         assertContains(exception.message.toString(), "empty")
     }
+
+    @Test
+    fun `retries on failed chunk`() = runBlocking {
+        val content = "hello world"
+        var attempts = 0
+        server.dispatcher = object : Dispatcher() {
+            override fun dispatch(request: RecordedRequest): MockResponse {
+                return when (request.method) {
+                    "HEAD" -> MockResponse.Builder()
+                        .addHeader("Content-Length", content.length)
+                        .addHeader("Accept-Ranges", "bytes")
+                        .code(200)
+                        .build()
+                    "GET" -> {
+                        attempts++
+                        if (attempts < 3) MockResponse.Builder().code(500).build()
+                        else {
+                            val range = request.headers["Range"]!!
+                            val start = range.substringAfter("bytes=").substringBefore("-").toInt()
+                            val end = range.substringAfter("-").toInt() + 1
+                            MockResponse.Builder()
+                                .body(content.substring(start, end))
+                                .code(206)
+                                .build()
+                        }
+                    }
+                    else -> MockResponse(code = 400)
+                }
+            }
+        }
+        val downloader = FileDownloader(server.url("").toString().trimEnd('/'), chunkCount = 1, retryCount = 3)
+        downloader.download("file.txt")
+        assertEquals(content, Path("file.txt").readText())
+    }
 }
