@@ -71,6 +71,15 @@ class FileDownloaderTest {
     }
 
     @Test
+    fun `download works with chunkCount bigger than size`() = runBlocking {
+        val content = "hello world"
+        setupDispatcher(content)
+        val downloader = FileDownloader(server.url("").toString().trimEnd('/'), chunkCount = content.length + 1)
+        downloader.download("file.txt")
+        assertEquals(content, Path("file.txt").readText())
+    }
+
+    @Test
     fun `throws exception when Accept-Ranges header is missing`() = runBlocking {
         server.dispatcher = object : Dispatcher() {
             override fun dispatch(request: RecordedRequest): MockResponse {
@@ -88,7 +97,7 @@ class FileDownloaderTest {
     fun `throws exception when file is empty`() = runBlocking {
         server.dispatcher = object : Dispatcher() {
             override fun dispatch(request: RecordedRequest): MockResponse {
-                return MockResponse.Builder().code(200).addHeader("Accept-Ranges","bytes").build()
+                return MockResponse.Builder().code(200).addHeader("Accept-Ranges", "bytes").build()
             }
         }
         val downloader = FileDownloader(server.url("").toString().trimEnd('/'), chunkCount = 1)
